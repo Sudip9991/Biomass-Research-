@@ -1,0 +1,152 @@
+---
+title: "R script for Mungbean"
+author: "Sudip"
+date: "2023-10-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+# Install and call the packages
+library(tidymodels)
+library(ggplot2)
+library(dplyr)
+library(lattice)
+# Set the working directory-> Read the files-> Select the column heads you want to work with
+setwd("D:/Sudip/Research files/Mungbean/Mung Date/New/")
+df <- read.csv("fly2.csv")
+df_VI<- select(df,c("trt","Dry_wt","SAVI"))
+```
+
+```{r}
+# Install and call the caret function
+library(caret)
+# Set the seed for reproducibility. Different seed will take different train and test data and so will change the model. You have to explore which seed will work better.
+# Then we will partition the whole data. Here 80% data will be used for training and 20% data will be used for testing or validation
+set.seed(1234)
+index <- createDataPartition(df_VI$SAVI, p = 0.8, 
+                                  list = FALSE, 
+                                  times = 1)
+train= df_VI[index,] # We have put the train and test data in the "train" & "test" variables
+test=df_VI[-index, ]
+dim(train) # By "dim" function we can see how much data has been selected for training and testing 
+dim(test)
+```
+```{r}
+# Now we will build the model with the help of "train" data and "lm" function
+lm_mod = lm(Dry_wt~SAVI,train) # Here we will perform linear regression with Dry_wt and SAVI & data is train data.
+lm_mod
+summary(lm_mod) # From this we can summarize the model
+library(performance)
+performance::model_performance(lm_mod) #It will summarize the model in tabular way more precisely
+```
+
+```{r}
+# Here we will visualize the model.
+# We have named the model plot "p1"
+library(ggpmisc)
+formula<-y~x
+p1<- ggplot(train, aes(SAVI,Dry_wt)) + # We will use ggplot function structure "train=data" then aes(x axis data,y axis data)
+  geom_point(size=2.5) +               # As we will show the scatter plot then point is placed and point size is increased
+  geom_smooth(method = "lm",se = FALSE)+ # To make a regression line we used geom_smooth. We could have also use "geom_line"
+  annotate("text",x=c(0.15,0.14),y=c(0.88,0.8),label=c("y=-0.015+ 1.205x","R2 (adj.): 0.739"),size=5)+ # Here annotate function will                                                input text on the plot -> we need to adjust the position x,y -> manually input the equation                                              and r2 value here. It can also be done using with other package automatically.
+  ggtitle("Biomass vs SAVI Model ") +   # Title name
+  xlab("SAVI") + ylab("Biomass (kg)") + # X axis and Y axis name
+  scale_x_continuous(limits=c(0,0.6), breaks=seq(0,0.6, .1))+ # X axis limit= where will the point starts; breaks=(start,interval,end)
+  scale_y_continuous(limits=c(0,1), breaks=seq(0, 1, .1)) +   # Same for Y axis
+  # Flip the bars
+  theme(
+    panel.background = element_rect(fill = "grey95",colour = "gray75",size = 0.5, linetype = "solid"),
+    axis.line = element_line(colour = "grey"),
+    plot.title = element_text(size = 14, hjust = 0.5),
+    axis.title.x = element_text(size = 14),
+    axis.title.y = element_text(size = 14),
+    axis.text.x=element_text(size=13, colour="black"),
+    axis.text.y=element_text(size=13,angle = 90,vjust = 0.5, hjust=0.5, colour='black'))
+p1
+#ggsave("Biomass vs SAVI Model.png", plot = p1, width = 6, height = 4, dpi = 300) #If we want to save the plot then I will need this line
+```
+
+
+```{r}
+# This code is for making two individual plot based on treatment here using facet_wrap function. Grouping is possible here 
+#library(gapminder)
+#lm_mod%>%
+  #ggplot(aes(x=SAVI,y= Dry_wt))+
+  #geom_point(color="red")+
+  #geom_smooth(method = "lm",se = FALSE)+
+  #stat_poly_eq(use_label(c("eq", "adj.R2")), formula = formula) +
+  #facet_wrap(~ trt)+
+  #theme_bw()
+```
+
+```{r}
+# This report package will give a text report for model
+#library(report)
+#report::report(lm_mod)
+```
+
+```{r}
+#plot(lm_mod)
+```
+
+```{r}
+# Now we want to make a result plot of the model where we will give observed vs predicted plot & see the R2,RMSE,MAE values.
+# Now we will predict the data from the model
+test$pred = predict(lm_mod,newdata=test)
+
+```
+
+```{r}
+# Here you will compare the observed data from test data and predicted data and extract the parameters
+mse <- mean((test$Dry_wt - test$pred)^2)
+rmse <- sqrt(mse)
+mae <- mean(abs(test$Dry_wt - test$pred))
+r2 <- 1 - (sum((test$Dry_wt - test$pred)^2) / 
+            sum((test$Dry_wt - mean(test$Dry_wt))^2))
+
+cat("Mean Squared Error (MSE): ", mse, "\n")
+cat("Root Mean Squared Error (RMSE): ", rmse, "\n")
+cat("Mean Absolute Error (MAE): ", mae, "\n")
+cat("R-squared (R2): ", r2, "\n")
+```
+
+
+```{r}
+# SAme as done before
+library(ggpmisc)
+plot_data <- data.frame(Actual = test$Dry_wt, Predicted = test$pred)
+formula<-y~x
+
+p2<- ggplot(plot_data, aes(Actual,Predicted)) +
+  geom_point(size=2.5) +
+  geom_smooth(method = "lm",se = FALSE)+
+  annotate("text",x=c(0.14,0.19),y=c(0.88,0.8),label=c("R2: 0.776","RMSE: 0.082"),size=5)+
+  ggtitle("") +
+  xlab("Observed biomass (kg)") + ylab("Predicted biomass (kg)") +
+  scale_x_continuous(limits=c(0,.9), breaks=seq(0, 1, .1))+ 
+  scale_y_continuous(limits=c(0,.9), breaks=seq(0, 1, .1)) +
+  # Flip the bars
+  theme(
+    panel.background = element_rect(fill = "grey95",colour = "gray75",size = 0.5, linetype = "solid"),
+    axis.line = element_line(colour = "grey"),
+    plot.title = element_text(size = 14, hjust = 0.5),
+    axis.title.x = element_text(size = 14),
+    axis.title.y = element_text(size = 14),
+    axis.text.x=element_text(size=13, colour="black"),
+    axis.text.y=element_text(size=13,angle = 90,vjust = 0.5, hjust=0.5, colour='black'))
+p2
+#ggsave("Observed vs Predicted Biomass SAVI.png", plot = p2, width = 6, height = 4, dpi = 300)
+```
+
+
+
+
+```{r}
+# By gripextra package we will combine two plots and save.
+library(gridExtra)
+combined_plot <- grid.arrange(p1, p2, ncol = 1,nrow = 2,heights = c(1, 1))# Here by "ncol" and "nrow" we can determine the arrangement of the                                                                         plot
+print(combined_plot)
+ggsave("SAVI model.png", plot =combined_plot, width =4, height = 7, dpi = 300)
+```
+
+
